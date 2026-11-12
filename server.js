@@ -317,13 +317,17 @@ app.get('/api/sites/:id/expenses/today', anyRole, async (req, res) => {
   }
 });
 
-// ─── Start server ─────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`ContractFlow server running on port ${PORT}`);
-  pool.connect()
-    .then(client => {
-      console.log('PostgreSQL (Supabase) Database connected ✓');
-      client.release();
-    })
-    .catch(e => console.error('Database connection failed:', e.message));
-});
+// ─── Start server / Export for Vercel ─────────────────────────────────────
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`ContractFlow server running on port ${PORT}`);
+    pool.connect()
+      .then(client => {
+        console.log('PostgreSQL (Supabase) Database connected ✓');
+        client.release();
+      })
+      .catch(e => console.error('Database connection failed:', e.message));
+  });
+}
+
+module.exports = app;
