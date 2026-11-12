@@ -6,6 +6,7 @@ const { Pool } = require('pg');
 const cors    = require('cors');
 const crypto  = require('crypto');
 const path    = require('path');
+const fs      = require('fs');
 const XLSX    = require('xlsx');
 
 const app  = express();
@@ -37,6 +38,15 @@ const TOKEN_TTL     = 86400000; // 24 h
 app.use(cors());
 app.use(express.json());
 app.use(express.static(__dirname));
+
+// ─── Serve Homepage ────────────────────────────────────────────────────────
+app.get('/', (req, res) => {
+  const p1 = path.join(__dirname, 'index.html');
+  if (fs.existsSync(p1)) return res.sendFile(p1);
+  const p2 = path.join(__dirname, '..', 'index.html');
+  if (fs.existsSync(p2)) return res.sendFile(p2);
+  res.status(404).send('index.html not found');
+});
 
 // ─── Token helpers ──────────────────────────────────────────────────────────
 function makeToken(role) {
