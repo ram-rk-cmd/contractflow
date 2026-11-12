@@ -356,22 +356,69 @@ app.get('/api/sites/:id/export', ownerOnly, async (req, res) => {
   }
 });
 
-// GET /api/export/all — ownerOnly
+// GET /api/export/all — ownerOnly (Complete Database Backup: All Tables)
 app.get('/api/export/all', ownerOnly, async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM v_sites_summary ORDER BY site_id');
+    const summaryRes = await pool.query('SELECT * FROM v_sites_summary ORDER BY site_id');
+    const expensesRes = await pool.query(`
+      SELECT e.site_id, s.site_name, e.expense_date, e.description, e.amount 
+      FROM expenses e 
+      JOIN sites s ON e.site_id = s.site_id 
+      ORDER BY e.site_id, e.expense_date, e.id
+    `);
+    const advancesRes = await pool.query(`
+      SELECT a.site_id, s.site_name, a.payment_date, a.amount, a.notes 
+      FROM advance_payments a 
+      JOIN sites s ON a.site_id = s.site_id 
+      ORDER BY a.site_id, a.payment_date, a.id
+    `);
+    const sitesRes = await pool.query('SELECT site_id, site_name, client_name, start_date, status FROM sites ORDER BY site_id');
 
     const wb = XLSX.utils.book_new();
-    const data = [['Site ID', 'Site Name', 'Client', 'Status', 'Total Advance (₹)', 'Total Expenses (₹)', 'Difference (₹)']];
-    result.rows.forEach(r => data.push([
+
+    // Sheet 1: All Sites Summary
+    const sumData = [['Site ID', 'Site Name', 'Client', 'Status', 'Total Advance (₹)', 'Total Expenses (₹)', 'Difference (₹)']];
+    summaryRes.rows.forEach(r => sumData.push([
       r.site_id, r.site_name, r.client_name || '', r.status,
-      parseFloat(r.total_advance), parseFloat(r.total_expenses), parseFloat(r.difference)
+      parseFloat(r.total_advance || 0), parseFloat(r.total_expenses || 0), parseFloat(r.difference || 0)
     ]));
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    XLSX.utils.book_append_sheet(wb, ws, 'All Sites Summary');
+    const wsSummary = XLSX.utils.aoa_to_sheet(sumData);
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+    // Sheet 2: All Expenses
+    const expData = [['Site ID', 'Site Name', 'Expense Date', 'Description', 'Amount (₹)']];
+    expensesRes.rows.forEach(r => expData.push([
+      r.site_id, r.site_name,
+      r.expense_date instanceof Date ? r.expense_date.toISOString().slice(0, 10) : String(r.expense_date),
+      r.description,
+      parseFloat(r.amount || 0)
+    ]));
+    const wsExp = XLSX.utils.aoa_to_sheet(expData);
+    XLSX.utils.book_append_sheet(wb, wsExp, 'All Expenses');
+
+    // Sheet 3: All Advances
+    const advData = [['Site ID', 'Site Name', 'Payment Date', 'Amount Received (₹)', 'Notes / Reference']];
+    advancesRes.rows.forEach(r => advData.push([
+      r.site_id, r.site_name,
+      r.payment_date instanceof Date ? r.payment_date.toISOString().slice(0, 10) : String(r.payment_date),
+      parseFloat(r.amount || 0),
+      r.notes || ''
+    ]));
+    const wsAdv = XLSX.utils.aoa_to_sheet(advData);
+    XLSX.utils.book_append_sheet(wb, wsAdv, 'All Advances');
+
+    // Sheet 4: Projects Master
+    const siteData = [['Site ID', 'Site Name', 'Client Name', 'Start Date', 'Status']];
+    sitesRes.rows.forEach(r => siteData.push([
+      r.site_id, r.site_name, r.client_name || '',
+      r.start_date ? (r.start_date instanceof Date ? r.start_date.toISOString().slice(0, 10) : String(r.start_date).slice(0, 10)) : '',
+      r.status
+    ]));
+    const wsSites = XLSX.utils.aoa_to_sheet(siteData);
+    XLSX.utils.book_append_sheet(wb, wsSites, 'Projects Master');
 
     const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
-    res.setHeader('Content-Disposition', 'attachment; filename="ContractFlow_All_Sites.xlsx"');
+    res.setHeader('Content-Disposition', 'attachment; filename="ContractFlow_Full_Database_Backup.xlsx"');
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.send(buf);
   } catch (err) {
