@@ -653,9 +653,6 @@ tfoot td {
         </div>
         <button type="submit" class="btn btn-primary btn-full" id="login-btn">Sign In</button>
       </form>
-      <p class="login-hint">
-        Default credentials: <strong>owner</strong> / <strong>owner123</strong> or <strong>assistant</strong> / <strong>asst123</strong>
-      </p>
     </div>
   </div>
 </div>
@@ -726,6 +723,7 @@ tfoot td {
                 <th style="text-align:right">Total Expenses</th>
                 <th style="text-align:right">Balance</th>
                 <th>Utilization</th>
+                <th style="text-align:right">Actions</th>
               </tr>
             </thead>
             <tbody id="projects-tbody"></tbody>
@@ -914,6 +912,45 @@ tfoot td {
   </div>
 </div>
 
+<!-- Edit Site Modal -->
+<div class="modal-overlay" id="modal-edit-site">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Edit Site Details</h3>
+      <button class="modal-close" aria-label="Close">&times;</button>
+    </div>
+    <form id="form-edit-site" autocomplete="off">
+      <input type="hidden" id="es-site-id">
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="es-site-name">Site Name</label>
+          <input type="text" id="es-site-name" required placeholder="Site Name">
+        </div>
+        <div class="form-group">
+          <label for="es-client-name">Client Name</label>
+          <input type="text" id="es-client-name" placeholder="Client Name">
+        </div>
+        <div class="form-group">
+          <label for="es-site-status">Status</label>
+          <select id="es-site-status">
+            <option value="active">Active</option>
+            <option value="on-hold">On-Hold</option>
+            <option value="completed">Completed</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="es-start-date">Start Date</label>
+          <input type="date" id="es-start-date">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline btn-sm modal-cancel">Cancel</button>
+        <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <!-- Add Expense Modal -->
 <div class="modal-overlay" id="modal-add-expense">
   <div class="modal-box">
@@ -988,7 +1025,7 @@ tfoot td {
       <button class="modal-close" aria-label="Close">&times;</button>
     </div>
     <div class="modal-body">
-      <p style="color:var(--secondary);">Are you sure you want to delete this entry? This action cannot be undone.</p>
+      <p id="delete-modal-msg" style="color:var(--secondary);">Are you sure you want to delete this entry? This action cannot be undone.</p>
     </div>
     <div class="modal-footer">
       <button type="button" class="btn btn-outline btn-sm modal-cancel">Cancel</button>
@@ -1275,7 +1312,7 @@ tfoot td {
   function renderProjectsTable(data) {
     var tbody = document.getElementById('projects-tbody');
     if (data.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--secondary); padding:24px;">No sites found. Add your first site to get started.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color:var(--secondary); padding:24px;">No sites found. Add your first site to get started.</td></tr>';
       return;
     }
 
@@ -1306,9 +1343,28 @@ tfoot td {
       html += '<span class="util-bar"><span class="util-bar-fill" style="width:' + pct + '%; background:' + barColor + '"></span></span>';
       html += '<span class="util-text">' + pct + '%</span>';
       html += '</td>';
+      html += '<td style="text-align:right; white-space:nowrap;">';
+      html += '<button class="btn btn-outline btn-sm btn-edit-site" data-edit-site="' + s.site_id + '" style="padding:4px 8px; font-size:12px; margin-right:4px;">Edit</button>';
+      html += '<button class="btn btn-danger btn-sm btn-delete-site" data-delete-site="' + s.site_id + '" style="padding:4px 8px; font-size:12px;">Delete</button>';
+      html += '</td>';
       html += '</tr>';
     });
     tbody.innerHTML = html;
+
+    tbody.querySelectorAll('[data-edit-site]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        openEditSiteModal(btn.dataset.editSite);
+      });
+    });
+
+    tbody.querySelectorAll('[data-delete-site]').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        pendingDeleteType = 'site';
+        pendingDeleteId = btn.dataset.deleteSite;
+        document.getElementById('delete-modal-msg').textContent = 'Are you sure you want to permanently delete site ' + pendingDeleteId + ' and all its recorded advances and expenses? This action cannot be undone.';
+        openModal('modal-confirm-delete');
+      });
+    });
   }
 
   async function loadSiteDropdowns() {
@@ -1448,24 +1504,41 @@ tfoot td {
 
     var url = pendingDeleteType === 'expense'
       ? '/api/expenses/' + pendingDeleteId
+      : pendingDeleteType === 'site'
+      ? '/api/sites/' + pendingDeleteId
       : '/api/advances/' + pendingDeleteId;
 
     try {
       var res = await apiFetch(url, { method: 'DELETE' });
       if (!res.ok) throw new Error('Delete failed');
-      showToast(pendingDeleteType === 'expense' ? 'Expense deleted' : 'Advance deleted', 'success');
+      var msg = pendingDeleteType === 'expense'
+        ? 'Expense deleted'
+        : pendingDeleteType === 'site'
+        ? 'Site and all records deleted'
+        : 'Advance deleted';
+      showToast(msg, 'success');
       closeModal('modal-confirm-delete');
 
-      if (selectedSiteId) {
-        if (pendingDeleteType === 'expense') {
-          loadExpenses(selectedSiteId);
-        } else {
-          loadAdvances(selectedSiteId);
+      if (pendingDeleteType === 'site') {
+        if (selectedSiteId === pendingDeleteId) {
+          selectedSiteId = '';
+          clearExpensesTable();
+          clearAdvancesTable();
         }
-      }
-      await loadSummary();
-      if (selectedSiteId) {
-        loadExpenseSummary(selectedSiteId);
+        await loadSummary();
+        await loadSiteDropdowns();
+      } else {
+        if (selectedSiteId) {
+          if (pendingDeleteType === 'expense') {
+            loadExpenses(selectedSiteId);
+          } else {
+            loadAdvances(selectedSiteId);
+          }
+        }
+        await loadSummary();
+        if (selectedSiteId) {
+          loadExpenseSummary(selectedSiteId);
+        }
       }
     } catch (err) {
       showToast('Delete failed: ' + err.message, 'error');
@@ -1473,6 +1546,64 @@ tfoot td {
 
     pendingDeleteType = '';
     pendingDeleteId = '';
+  });
+
+  // ── Edit Site Form ──
+  function openEditSiteModal(siteId) {
+    var site = summaryData.find(function(s) { return String(s.site_id) === String(siteId); });
+    if (!site) return;
+    document.getElementById('es-site-id').value = site.site_id;
+    document.getElementById('es-site-name').value = site.site_name || '';
+    document.getElementById('es-client-name').value = site.client_name || '';
+    document.getElementById('es-site-status').value = site.status || 'active';
+
+    var dateVal = '';
+    if (site.start_date) {
+      try {
+        dateVal = new Date(site.start_date).toISOString().slice(0, 10);
+      } catch (err) {
+        dateVal = String(site.start_date).slice(0, 10);
+      }
+    }
+    document.getElementById('es-start-date').value = dateVal;
+    openModal('modal-edit-site');
+  }
+
+  document.getElementById('form-edit-site').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    var siteId = document.getElementById('es-site-id').value;
+    var siteName = document.getElementById('es-site-name').value.trim();
+    var clientName = document.getElementById('es-client-name').value.trim();
+    var status = document.getElementById('es-site-status').value;
+    var startDate = document.getElementById('es-start-date').value;
+
+    if (!siteName) {
+      showToast('Site name is required', 'error');
+      return;
+    }
+
+    try {
+      var res = await apiFetch('/api/sites/' + siteId, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({
+          site_name: siteName,
+          client_name: clientName,
+          status: status,
+          start_date: startDate || null
+        })
+      });
+      if (!res.ok) {
+        var errData = await res.json().catch(function() { return {}; });
+        throw new Error(errData.message || errData.error || 'Failed to update site');
+      }
+      showToast('Site details updated', 'success');
+      closeModal('modal-edit-site');
+      await loadSummary();
+      await loadSiteDropdowns();
+    } catch (err) {
+      showToast('Error: ' + err.message, 'error');
+    }
   });
 
   // ── New Site Form ──

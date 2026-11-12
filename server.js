@@ -203,6 +203,33 @@ app.put('/api/sites/:id/status', ownerOnly, async (req, res) => {
   }
 });
 
+// PUT /api/sites/:id — ownerOnly (Edit Site Details)
+app.put('/api/sites/:id', ownerOnly, async (req, res) => {
+  const { site_name, client_name, status, start_date } = req.body;
+  if (!site_name) return res.status(400).json({ error: 'Site name is required' });
+  try {
+    await pool.query(
+      'UPDATE sites SET site_name = $1, client_name = $2, status = $3, start_date = $4 WHERE site_id = $5',
+      [site_name, client_name || null, status || 'active', start_date || null, req.params.id]
+    );
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/sites/:id — ownerOnly (Delete Site and related records)
+app.delete('/api/sites/:id', ownerOnly, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM expenses WHERE site_id = $1', [req.params.id]);
+    await pool.query('DELETE FROM advance_payments WHERE site_id = $1', [req.params.id]);
+    await pool.query('DELETE FROM sites WHERE site_id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/sites/:id/expenses — ownerOnly
 app.get('/api/sites/:id/expenses', ownerOnly, async (req, res) => {
   try {
