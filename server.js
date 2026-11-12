@@ -28,11 +28,15 @@ const pool = connectionString
       ssl     : process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined
     });
 
-// ─── Constants ─────────────────────────────────────────────────────────────
-const OWNER_PIN     = process.env.OWNER_PIN     || '1234';
-const ASSISTANT_PIN = process.env.ASSISTANT_PIN || '5678';
-const TOKEN_SECRET  = process.env.TOKEN_SECRET  || 'contractflow_secret';
-const TOKEN_TTL     = 86400000; // 24 h
+// ─── Constants & Credentials ───────────────────────────────────────────────
+const OWNER_USERNAME     = process.env.OWNER_USERNAME     || 'owner';
+const OWNER_PASSWORD     = process.env.OWNER_PASSWORD     || process.env.OWNER_PIN || 'owner123';
+
+const ASSISTANT_USERNAME = process.env.ASSISTANT_USERNAME || 'assistant';
+const ASSISTANT_PASSWORD = process.env.ASSISTANT_PASSWORD || process.env.ASSISTANT_PIN || 'site123';
+
+const TOKEN_SECRET       = process.env.TOKEN_SECRET       || 'contractflow_enterprise_secret_2026';
+const TOKEN_TTL          = 86400000; // 24 h
 
 // ─── Middleware ─────────────────────────────────────────────────────────────
 app.use(cors());
@@ -49,8 +53,8 @@ app.get('/', (req, res) => {
 });
 
 // ─── Token helpers ──────────────────────────────────────────────────────────
-function makeToken(role) {
-  const payload = Buffer.from(JSON.stringify({ role, exp: Date.now() + TOKEN_TTL })).toString('base64');
+function makeToken(role, username) {
+  const payload = Buffer.from(JSON.stringify({ role, username, exp: Date.now() + TOKEN_TTL })).toString('base64');
   const sig     = crypto.createHmac('sha256', TOKEN_SECRET).update(payload).digest('hex');
   return `${payload}.${sig}`;
 }
@@ -74,16 +78,17 @@ function parseToken(token) {
 // ─── Auth Middleware ─────────────────────────────────────────────────────────
 function verifyToken(req, res, next) {
   const authHeader = req.headers['authorization'] || '';
-  if (!authHeader.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing token' });
+  if (!authHeader.startsWith('Bearer ')) return res.status(401).json({ error: 'Missing authentication token' });
   const data = parseToken(authHeader.slice(7));
-  if (!data) return res.status(401).json({ error: 'Invalid or expired token' });
+  if (!data) return res.status(401).json({ error: 'Session expired or invalid. Please sign in again.' });
   req.role = data.role;
+  req.username = data.username;
   next();
 }
 
 function ownerOnly(req, res, next) {
   verifyToken(req, res, () => {
-    if (req.role !== 'owner') return res.status(403).json({ error: 'Owner access required' });
+    if (req.role !== 'owner') return res.status(403).json({ error: 'Owner/Executive access required' });
     next();
   });
 }
@@ -103,13 +108,47 @@ async function nextSiteId(client) {
 //  ROUTES
 // ═══════════════════════════════════════════════════════════════════════════
 
-// POST /api/login
+// POST /api/login — Supports User ID + Password (and legacy PIN)
 app.post('/api/login', (req, res) => {
-  const { pin } = req.body;
-  if (!pin) return res.status(400).json({ error: 'PIN required' });
-  if (pin === OWNER_PIN)     return res.json({ role: 'owner',     token: makeToken('owner') });
-  if (pin === ASSISTANT_PIN) return res.json({ role: 'assistant', token: makeToken('assistant') });
-  return res.status(401).json({ error: 'Invalid PIN' });
+  const { username, password, pin } = req.body;
+
+  // 1. Dual User ID + Password check
+  if (username && password) {
+    const u = String(username).trim().toLowerCase();
+    const p = String(password).trim();
+
+    if (u === OWNER_USERNAME.toLowerCase() && p === OWNER_PASSWORD) {
+      return res.json({ 
+        role: 'owner', 
+        username: OWNER_USERNAME,
+        token: makeToken('owner', OWNER_USERNAME) 
+      });
+    }
+
+    if (u === ASSISTANT_USERNAME.toLowerCase() && p === ASSISTANT_PASSWORD) {
+      return res.json({ 
+        role: 'assistant', 
+        username: ASSISTANT_USERNAME,
+        token: makeToken('assistant', ASSISTANT_USERNAME) 
+      });
+    }
+
+    return res.status(401).json({ error: 'Incorrect User ID or Password' });
+  }
+
+  // 2. PIN fallback
+  if (pin) {
+    const p = String(pin).trim();
+    if (p === OWNER_PASSWORD || p === process.env.OWNER_PIN || p === '1234') {
+      return res.json({ role: 'owner', username: OWNER_USERNAME, token: makeToken('owner', OWNER_USERNAME) });
+    }
+    if (p === ASSISTANT_PASSWORD || p === process.env.ASSISTANT_PIN || p === '5678') {
+      return res.json({ role: 'assistant', username: ASSISTANT_USERNAME, token: makeToken('assistant', ASSISTANT_USERNAME) });
+    }
+    return res.status(401).json({ error: 'Incorrect PIN' });
+  }
+
+  return res.status(400).json({ error: 'Please enter User ID and Password' });
 });
 
 // GET /api/sites — anyRole: returns [{site_id, site_name}]
