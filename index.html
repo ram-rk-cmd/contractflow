@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>ContractFlow – Construction Fund Manager</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --navy:    #1e3a5f;
+  --orange:  #f97316;
+  --light-bg:#f5f7fa;
+  --card-bg: #ffffff;
+  --text:    #1a1a2e;
+  --muted:   #6b7280;
+  --green:   #16a34a;
+  --red:     #dc2626;
+  --yellow:  #d97706;
+  --border:  #e5e7eb;
+  --radius:  10px;
+  --shadow:  0 2px 12px rgba(0,0,0,.08);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',sans-serif;background:var(--light-bg);color:var(--text);min-height:100vh;}
+.view{display:none;}
+.view.active{display:block;}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border:none;border-radius:var(--radius);font-size:.875rem;font-weight:600;cursor:pointer;transition:opacity .15s,transform .1s;}
+.btn:hover{opacity:.88;transform:translateY(-1px);}
+.btn:active{transform:translateY(0);}
+.btn-navy{background:var(--navy);color:#fff;}
+.btn-orange{background:var(--orange);color:#fff;}
+.btn-green{background:var(--green);color:#fff;}
+.btn-red{background:var(--red);color:#fff;}
+.btn-outline{background:transparent;border:1.5px solid var(--border);color:var(--text);}
+.btn-sm{padding:5px 12px;font-size:.8rem;}
+.btn-icon{padding:5px 9px;font-size:.85rem;}
+
+/* ── Cards ── */
+.card{background:var(--card-bg);border-radius:var(--radius);box-shadow:var(--shadow);padding:24px;}
+
+/* ── Forms ── */
+.form-group{margin-bottom:16px;}
+.form-group label{display:block;font-size:.8rem;font-weight:600;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em;}
+.form-group input,.form-group select,.form-group textarea{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem;font-family:inherit;transition:border-color .2s;}
+.form-group input:focus,.form-group select:focus,.form-group textarea:focus{outline:none;border-color:var(--navy);}
+.form-group .input-prefix{display:flex;align-items:center;border:1.5px solid var(--border);border-radius:8px;overflow:hidden;transition:border-color .2s;}
+.form-group .input-prefix:focus-within{border-color:var(--navy);}
+.form-group .input-prefix span{padding:10px 10px 10px 12px;background:var(--light-bg);font-weight:600;color:var(--muted);}
+.form-group .input-prefix input{border:none;border-radius:0;padding-left:4px;}
+.form-group .input-prefix input:focus{border:none;}
+
+/* ── Tables ── */
+.table-wrap{overflow-x:auto;border-radius:8px;border:1px solid var(--border);}
+table{width:100%;border-collapse:collapse;font-size:.875rem;}
+th{background:var(--navy);color:#fff;padding:11px 14px;text-align:left;white-space:nowrap;}
+td{padding:10px 14px;border-bottom:1px solid var(--border);vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr:hover td{background:#f9fafb;}
+.tfoot-row td{font-weight:700;background:#f0f4f8;color:var(--navy);}
+
+/* ── Status badges ── */
+.badge{display:inline-block;padding:3px 10px;border-radius:20px;font-size:.75rem;font-weight:600;}
+.badge-active{background:#dcfce7;color:var(--green);}
+.badge-completed{background:#dbeafe;color:#1d4ed8;}
+.badge-on-hold{background:#fef3c7;color:var(--yellow);}
+
+/* ── Diff cell colours ── */
+.diff-pos{background:#dcfce7;color:var(--green);font-weight:700;}
+.diff-neg{background:#fee2e2;color:var(--red);font-weight:700;}
+
+/* ══════════════ LOGIN ══════════════ */
+#view-login{display:flex;min-height:100vh;align-items:center;justify-content:center;padding:20px;}
+.login-card{background:var(--card-bg);border-radius:16px;box-shadow:0 8px 40px rgba(0,0,0,.12);padding:40px 36px;width:100%;max-width:520px;}
+.login-title{font-size:1.8rem;font-weight:700;color:var(--navy);text-align:center;}
+.login-subtitle{text-align:center;color:var(--muted);margin-bottom:32px;font-size:.9rem;}
+.login-panels{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+@media(max-width:480px){.login-panels{grid-template-columns:1fr;}}
+.login-panel{border:2px solid var(--border);border-radius:var(--radius);padding:20px;}
+.login-panel h3{font-size:.95rem;font-weight:700;margin-bottom:14px;}
+.login-panel.owner h3{color:var(--navy);}
+.login-panel.assistant h3{color:var(--orange);}
+.login-panel input{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:1rem;margin-bottom:12px;text-align:center;letter-spacing:3px;font-family:inherit;}
+.login-panel input:focus{outline:none;border-color:var(--navy);}
+.login-panel.assistant input:focus{border-color:var(--orange);}
+#login-error{color:var(--red);font-size:.85rem;text-align:center;margin-top:12px;min-height:20px;}
+
+/* ══════════════ HEADER ══════════════ */
+.app-header{background:var(--navy);color:#fff;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2);}
+.app-header h1{font-size:1.1rem;font-weight:700;}
+.app-header .role-badge{font-size:.75rem;background:rgba(255,255,255,.18);padding:3px 10px;border-radius:12px;margin-left:10px;}
+
+/* ══════════════ ASSISTANT VIEW ══════════════ */
+#view-assistant .content-wrap{max-width:560px;margin:30px auto;padding:0 16px;}
+.asst-subheader{font-size:1rem;font-weight:600;color:var(--muted);margin-bottom:16px;}
+.success-msg{background:#dcfce7;color:var(--green);padding:10px 16px;border-radius:8px;font-size:.875rem;font-weight:600;margin-bottom:16px;display:none;}
+.today-entries h4{font-size:.875rem;font-weight:600;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em;}
+
+/* ══════════════ OWNER VIEW ══════════════ */
+.owner-content{padding:20px 24px;max-width:1200px;margin:0 auto;}
+@media(max-width:768px){.owner-content{padding:12px;}}
+
+/* Tabs */
+.tab-bar{display:flex;gap:4px;border-bottom:2px solid var(--border);margin-bottom:24px;}
+.tab-btn{padding:10px 20px;background:none;border:none;font-size:.9rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .2s,border-color .2s;}
+.tab-btn.active{color:var(--navy);border-color:var(--navy);}
+.tab-panel{display:none;}
+.tab-panel.active{display:block;}
+
+/* Summary top bar */
+.section-topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;}
+.section-topbar h2{font-size:1rem;font-weight:700;color:var(--navy);}
+
+/* ══════════════ MODALS ══════════════ */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;display:none;align-items:center;justify-content:center;padding:16px;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--card-bg);border-radius:16px;box-shadow:0 12px 48px rgba(0,0,0,.2);padding:30px;width:100%;max-width:420px;}
+.modal h3{font-size:1.05rem;font-weight:700;margin-bottom:20px;color:var(--navy);}
+.modal-actions{display:flex;gap:10px;margin-top:20px;justify-content:flex-end;}
+
+/* ══════════════ MISC ══════════════ */
+.empty-state{padding:40px;text-align:center;color:var(--muted);font-size:.9rem;}
+.amount-cell{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap;}
+.site-select-row{display:flex;align-items:center;gap:12px;margin-bottom:18px;flex-wrap:wrap;}
+.site-select-row label{font-weight:600;font-size:.85rem;color:var(--muted);white-space:nowrap;}
+.site-select-row select{padding:8px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.875rem;min-width:200px;}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════
+     LOGIN VIEW
+══════════════════════════════════════════════════ -->
+<div id="view-login" class="view active">
+  <div class="login-card">
+    <div class="login-title">🏗️ ContractFlow</div>
+    <div class="login-subtitle">Construction Fund Manager</div>
+    <div class="login-panels">
+      <div class="login-panel owner">
+        <h3>🔑 Owner Login</h3>
+        <input type="password" id="owner-pin" placeholder="Enter Owner PIN" maxlength="20"/>
+        <button class="btn btn-navy" style="width:100%" onclick="doLogin('owner')">Owner Login</button>
+      </div>
+      <div class="login-panel assistant">
+        <h3>🧱 Assistant Login</h3>
+        <input type="password" id="asst-pin" placeholder="Enter Assistant PIN" maxlength="20"/>
+        <button class="btn btn-orange" style="width:100%" onclick="doLogin('assistant')">Assistant Login</button>
+      </div>
+    </div>
+    <div id="login-error"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     ASSISTANT VIEW
+══════════════════════════════════════════════════ -->
+<div id="view-assistant" class="view">
+  <header class="app-header">
+    <h1>🏗️ ContractFlow <span class="role-badge">Assistant</span></h1>
+    <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="logout()">Logout</button>
+  </header>
+  <div class="content-wrap">
+    <div class="asst-subheader">Site Expense Entry</div>
+    <div class="card">
+      <div id="asst-success" class="success-msg">✅ Expense added successfully!</div>
+      <form id="asst-form" onsubmit="submitExpense(event)">
+        <div class="form-group">
+          <label>Select Site</label>
+          <select id="asst-site" required onchange="loadTodayEntries()">
+            <option value="">— Select a site —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="asst-date" required/>
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea id="asst-desc" rows="3" required placeholder="e.g. Cement – 50 bags"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Amount</label>
+          <div class="input-prefix">
+            <span>₹</span>
+            <input type="number" id="asst-amount" required min="0.01" step="0.01" placeholder="0"/>
+          </div>
+        </div>
+        <button type="submit" class="btn btn-orange" style="width:100%">Add Expense</button>
+      </form>
+    </div>
+
+    <div class="today-entries" style="margin-top:24px;">
+      <h4>Today's Entries</h4>
+      <div class="table-wrap">
+        <table id="today-table">
+          <thead><tr><th>Date</th><th>Description</th><th style="text-align:right">Amount (₹)</th></tr></thead>
+          <tbody id="today-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     OWNER VIEW
+══════════════════════════════════════════════════ -->
+<div id="view-owner" class="view">
+  <header class="app-header">
+    <h1>🏗️ ContractFlow <span class="role-badge">Owner</span></h1>
+    <button class="btn btn-outline" style="color:#fff;border-color:rgba(255,255,255,.4)" onclick="logout()">Logout</button>
+  </header>
+  <div class="owner-content">
+    <div class="tab-bar">
+      <button class="tab-btn active" onclick="switchTab('summary',this)">📊 Summary</button>
+      <button class="tab-btn" onclick="switchTab('expenses',this)">💸 Expenses</button>
+      <button class="tab-btn" onclick="switchTab('advances',this)">💰 Advances</button>
+    </div>
+
+    <!-- ── SUMMARY TAB ── -->
+    <div id="tab-summary" class="tab-panel active">
+      <div class="section-topbar">
+        <h2>All Sites Summary</h2>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn btn-navy btn-sm" onclick="openModal('modal-new-site')">+ New Site</button>
+          <button class="btn btn-outline btn-sm" onclick="exportAll()">📥 Export All</button>
+          <button class="btn btn-outline btn-sm" onclick="loadSummary()">🔄 Refresh</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table id="summary-table">
+          <thead>
+            <tr>
+              <th>Site ID</th><th>Site Name</th><th>Client</th>
+              <th style="text-align:right">Total Advance</th>
+              <th style="text-align:right">Total Expenses</th>
+              <th style="text-align:right">Difference</th>
+              <th>Status</th><th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="summary-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── EXPENSES TAB ── -->
+    <div id="tab-expenses" class="tab-panel">
+      <div class="section-topbar">
+        <div class="site-select-row">
+          <label>Site:</label>
+          <select id="exp-site-select" onchange="loadExpenses()">
+            <option value="">— Select site —</option>
+          </select>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="exportSite()">📥 Export Site</button>
+      </div>
+      <div class="table-wrap">
+        <table id="exp-table">
+          <thead>
+            <tr>
+              <th>Date</th><th>Description</th>
+              <th style="text-align:right">Amount (₹)</th>
+              <th style="text-align:right">Cumulative (₹)</th>
+              <th>Delete</th>
+            </tr>
+          </thead>
+          <tbody id="exp-tbody"></tbody>
+          <tfoot><tr class="tfoot-row" id="exp-tfoot"><td colspan="5" style="text-align:center;color:var(--muted)">Select a site above</td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- ── ADVANCES TAB ── -->
+    <div id="tab-advances" class="tab-panel">
+      <div class="section-topbar">
+        <div class="site-select-row">
+          <label>Site:</label>
+          <select id="adv-site-select" onchange="loadAdvances()">
+            <option value="">— Select site —</option>
+          </select>
+        </div>
+        <button class="btn btn-green btn-sm" onclick="openAddAdvance()">+ Add Advance</button>
+      </div>
+      <div class="table-wrap">
+        <table id="adv-table">
+          <thead>
+            <tr>
+              <th>Date</th><th style="text-align:right">Amount (₹)</th>
+              <th>Notes</th><th style="text-align:right">Cumulative (₹)</th>
+              <th>Delete</th>
+            </tr>
+          </thead>
+          <tbody id="adv-tbody"></tbody>
+          <tfoot><tr class="tfoot-row" id="adv-tfoot"><td colspan="5" style="text-align:center;color:var(--muted)">Select a site above</td></tr></tfoot>
+        </table>
+      </div>
+    </div>
+  </div><!-- /owner-content -->
+</div><!-- /view-owner -->
+
+<!-- ══════════════════════════════════════════════════
+     MODALS
+══════════════════════════════════════════════════ -->
+
+<!-- New Site -->
+<div id="modal-new-site" class="modal-overlay">
+  <div class="modal">
+    <h3>➕ Add New Site</h3>
+    <div class="form-group">
+      <label>Site Name *</label>
+      <input type="text" id="ns-name" placeholder="e.g. Sharma Residence"/>
+    </div>
+    <div class="form-group">
+      <label>Client Name</label>
+      <input type="text" id="ns-client" placeholder="e.g. Ramesh Sharma"/>
+    </div>
+    <div class="form-group">
+      <label>Start Date</label>
+      <input type="date" id="ns-date"/>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('modal-new-site')">Cancel</button>
+      <button class="btn btn-navy" onclick="createSite()">Create Site</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Advance -->
+<div id="modal-add-advance" class="modal-overlay">
+  <div class="modal">
+    <h3>💰 Add Advance Payment</h3>
+    <div class="form-group">
+      <label>Date *</label>
+      <input type="date" id="adv-date"/>
+    </div>
+    <div class="form-group">
+      <label>Amount *</label>
+      <div class="input-prefix">
+        <span>₹</span>
+        <input type="number" id="adv-amount" min="0.01" step="0.01" placeholder="0"/>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <input type="text" id="adv-notes" placeholder="e.g. Initial advance"/>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('modal-add-advance')">Cancel</button>
+      <button class="btn btn-green" onclick="submitAdvance()">Add Advance</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Delete -->
+<div id="modal-confirm" class="modal-overlay">
+  <div class="modal">
+    <h3>🗑️ Confirm Delete</h3>
+    <p style="color:var(--muted);margin-bottom:8px">Are you sure you want to delete this entry? This cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('modal-confirm')">Cancel</button>
+      <button class="btn btn-red" id="confirm-ok-btn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<!-- Status Change -->
+<div id="modal-status" class="modal-overlay">
+  <div class="modal">
+    <h3>🔄 Change Site Status</h3>
+    <div class="form-group">
+      <label>New Status</label>
+      <select id="status-select">
+        <option value="active">Active</option>
+        <option value="completed">Completed</option>
+        <option value="on-hold">On Hold</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal('modal-status')">Cancel</button>
+      <button class="btn btn-navy" onclick="submitStatusChange()">Update</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════
+let token      = sessionStorage.getItem('cf_token') || '';
+let role       = sessionStorage.getItem('cf_role')  || '';
+let _pendingDeleteFn = null;
+let _pendingStatusSiteId = null;
+
+// ═══════════════════════════════════════════════════
+//  HELPERS
+// ═══════════════════════════════════════════════════
+const formatINR = amt =>
+  new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amt);
+
+const formatDate = s => {
+  if (!s) return '';
+  const d = typeof s === 'string' ? s.slice(0, 10) : new Date(s).toISOString().slice(0, 10);
+  const [y, m, day] = d.split('-');
+  return `${day}/${m}/${y}`;
+};
+
+const todayISO = () => new Date().toISOString().slice(0, 10);
+
+async function apiCall(method, url, body) {
+  const opts = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': 'Bearer ' + token } : {})
+    }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({ error: res.statusText }));
+    throw new Error(e.error || res.statusText);
+  }
+  return res;
+}
+
+async function apiJSON(method, url, body) {
+  const res = await apiCall(method, url, body);
+  return res.json();
+}
+
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function openModal(id)  { document.getElementById(id).classList.add('open');    }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function statusBadge(s) {
+  const map = { active:'badge-active', completed:'badge-completed', 'on-hold':'badge-on-hold' };
+  return `<span class="badge ${map[s]||''}">${s}</span>`;
+}
+
+// ═══════════════════════════════════════════════════
+//  AUTH
+// ═══════════════════════════════════════════════════
+async function doLogin(which) {
+  const pinEl = document.getElementById(which === 'owner' ? 'owner-pin' : 'asst-pin');
+  const pin   = pinEl.value.trim();
+  if (!pin) { showError('Enter your PIN'); return; }
+  try {
+    const data = await apiJSON('POST', '/api/login', { pin });
+    if (data.token) {
+      token = data.token;
+      role  = data.role;
+      sessionStorage.setItem('cf_token', token);
+      sessionStorage.setItem('cf_role', role);
+      onLoginSuccess();
+    }
+  } catch (err) {
+    showError('Invalid PIN. Try again.');
+    pinEl.value = '';
+    pinEl.focus();
+  }
+}
+
+function showError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg;
+  setTimeout(() => el.textContent = '', 3000);
+}
+
+function logout() {
+  token = ''; role = '';
+  sessionStorage.removeItem('cf_token');
+  sessionStorage.removeItem('cf_role');
+  showView('view-login');
+  document.getElementById('owner-pin').value  = '';
+  document.getElementById('asst-pin').value   = '';
+}
+
+function onLoginSuccess() {
+  if (role === 'owner') {
+    showView('view-owner');
+    initOwnerView();
+  } else {
+    showView('view-assistant');
+    initAssistantView();
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  ASSISTANT VIEW
+// ═══════════════════════════════════════════════════
+async function initAssistantView() {
+  document.getElementById('asst-date').value = todayISO();
+  try {
+    const sites = await apiJSON('GET', '/api/sites');
+    const sel   = document.getElementById('asst-site');
+    sel.innerHTML = '<option value="">— Select a site —</option>';
+    sites.forEach(s => {
+      const o = document.createElement('option');
+      o.value = s.site_id; o.textContent = `${s.site_id} – ${s.site_name}`;
+      sel.appendChild(o);
+    });
+  } catch(e) { alert('Error loading sites: ' + e.message); }
+}
+
+async function submitExpense(e) {
+  e.preventDefault();
+  const site_id     = document.getElementById('asst-site').value;
+  const expense_date= document.getElementById('asst-date').value;
+  const description = document.getElementById('asst-desc').value.trim();
+  const amount      = parseFloat(document.getElementById('asst-amount').value);
+  if (!site_id) { alert('Please select a site'); return; }
+  try {
+    await apiJSON('POST', `/api/sites/${site_id}/expenses`, { expense_date, description, amount });
+    document.getElementById('asst-desc').value = '';
+    document.getElementById('asst-amount').value = '';
+    const msg = document.getElementById('asst-success');
+    msg.style.display = 'block';
+    setTimeout(() => msg.style.display = 'none', 3000);
+    loadTodayEntries();
+  } catch(err) { alert('Error: ' + err.message); }
+}
+
+async function loadTodayEntries() {
+  const site_id = document.getElementById('asst-site').value;
+  const tbody   = document.getElementById('today-tbody');
+  if (!site_id) { tbody.innerHTML = '<tr><td colspan="3" class="empty-state">Select a site</td></tr>'; return; }
+  try {
+    const rows = await apiJSON('GET', `/api/sites/${site_id}/expenses/today`);
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No entries today</td></tr>';
+    } else {
+      tbody.innerHTML = rows.map(r => `
+        <tr>
+          <td>${formatDate(r.expense_date)}</td>
+          <td>${escHtml(r.description)}</td>
+          <td class="amount-cell">${formatINR(r.amount)}</td>
+        </tr>`).join('');
+    }
+  } catch(err) {
+    tbody.innerHTML = `<tr><td colspan="3" class="empty-state">Error: ${escHtml(err.message)}</td></tr>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  OWNER VIEW – INIT
+// ═══════════════════════════════════════════════════
+async function initOwnerView() {
+  await loadSiteDropdowns();
+  loadSummary();
+}
+
+async function loadSiteDropdowns() {
+  try {
+    const sites = await apiJSON('GET', '/api/sites');
+    ['exp-site-select','adv-site-select'].forEach(id => {
+      const sel = document.getElementById(id);
+      sel.innerHTML = '<option value="">— Select site —</option>';
+      sites.forEach(s => {
+        const o = document.createElement('option');
+        o.value = s.site_id; o.textContent = `${s.site_id} – ${s.site_name}`;
+        sel.appendChild(o);
+      });
+    });
+  } catch(e) { console.error(e); }
+}
+
+// ═══════════════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════════════
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + tab).classList.add('active');
+  if (tab === 'summary')  loadSummary();
+  if (tab === 'expenses') loadExpenses();
+  if (tab === 'advances') loadAdvances();
+}
+
+// ═══════════════════════════════════════════════════
+//  SUMMARY
+// ═══════════════════════════════════════════════════
+async function loadSummary() {
+  const tbody = document.getElementById('summary-tbody');
+  tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Loading…</td></tr>';
+  try {
+    const rows = await apiJSON('GET', '/api/sites/summary');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No sites found. Add your first site!</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => {
+      const diff    = parseFloat(r.difference);
+      const diffCls = diff >= 0 ? 'diff-pos' : 'diff-neg';
+      return `<tr>
+        <td><strong>${r.site_id}</strong></td>
+        <td>${escHtml(r.site_name)}</td>
+        <td>${escHtml(r.client_name || '—')}</td>
+        <td class="amount-cell">${formatINR(r.total_advance)}</td>
+        <td class="amount-cell">${formatINR(r.total_expenses)}</td>
+        <td class="amount-cell ${diffCls}">${formatINR(diff)}</td>
+        <td>${statusBadge(r.status)}</td>
+        <td>
+          <button class="btn btn-outline btn-icon" title="Change status" onclick="openStatusModal('${r.site_id}','${r.status}')">🔄</button>
+        </td>
+      </tr>`;
+    }).join('');
+  } catch(err) {
+    tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Error: ${escHtml(err.message)}</td></tr>`;
+  }
+}
+
+function openStatusModal(siteId, currentStatus) {
+  _pendingStatusSiteId = siteId;
+  document.getElementById('status-select').value = currentStatus;
+  openModal('modal-status');
+}
+
+async function submitStatusChange() {
+  const status = document.getElementById('status-select').value;
+  try {
+    await apiJSON('PUT', `/api/sites/${_pendingStatusSiteId}/status`, { status });
+    closeModal('modal-status');
+    loadSummary();
+  } catch(err) { alert('Error: ' + err.message); }
+}
+
+// ═══════════════════════════════════════════════════
+//  NEW SITE
+// ═══════════════════════════════════════════════════
+async function createSite() {
+  const name  = document.getElementById('ns-name').value.trim();
+  const client= document.getElementById('ns-client').value.trim();
+  const date  = document.getElementById('ns-date').value;
+  if (!name) { alert('Site name is required'); return; }
+  try {
+    await apiJSON('POST', '/api/sites', { site_name: name, client_name: client || null, start_date: date || null });
+    closeModal('modal-new-site');
+    document.getElementById('ns-name').value   = '';
+    document.getElementById('ns-client').value = '';
+    document.getElementById('ns-date').value   = '';
+    await loadSiteDropdowns();
+    loadSummary();
+  } catch(err) { alert('Error: ' + err.message); }
+}
+
+// ═══════════════════════════════════════════════════
+//  EXPENSES (OWNER)
+// ═══════════════════════════════════════════════════
+async function loadExpenses() {
+  const siteId = document.getElementById('exp-site-select').value;
+  // Sync advances dropdown
+  document.getElementById('adv-site-select').value = siteId;
+  const tbody  = document.getElementById('exp-tbody');
+  const tfoot  = document.getElementById('exp-tfoot');
+  if (!siteId) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Select a site above</td></tr>';
+    tfoot.innerHTML = '<td colspan="5" style="text-align:center;color:var(--muted)">Select a site above</td>';
+    return;
+  }
+  tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Loading…</td></tr>';
+  try {
+    const rows = await apiJSON('GET', `/api/sites/${siteId}/expenses`);
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No expenses recorded yet</td></tr>';
+      tfoot.innerHTML = '<td colspan="5" style="text-align:center;color:var(--muted)">No data</td>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td>${formatDate(r.expense_date)}</td>
+        <td>${escHtml(r.description)}</td>
+        <td class="amount-cell">${formatINR(r.amount)}</td>
+        <td class="amount-cell">${formatINR(r.cumulative_expense)}</td>
+        <td><button class="btn btn-red btn-icon" onclick="confirmDelete('expense',${r.id})">🗑️</button></td>
+      </tr>`).join('');
+    const total = rows.reduce((sum, r) => sum + parseFloat(r.amount), 0);
+    tfoot.innerHTML = `<td colspan="2"><strong>Total</strong></td><td class="amount-cell"><strong>${formatINR(total)}</strong></td><td colspan="2"></td>`;
+  } catch(err) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Error: ${escHtml(err.message)}</td></tr>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  ADVANCES (OWNER)
+// ═══════════════════════════════════════════════════
+async function loadAdvances() {
+  const siteId = document.getElementById('adv-site-select').value;
+  document.getElementById('exp-site-select').value = siteId;
+  const tbody  = document.getElementById('adv-tbody');
+  const tfoot  = document.getElementById('adv-tfoot');
+  if (!siteId) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Select a site above</td></tr>';
+    tfoot.innerHTML = '<td colspan="5" style="text-align:center;color:var(--muted)">Select a site above</td>';
+    return;
+  }
+  tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Loading…</td></tr>';
+  try {
+    const rows = await apiJSON('GET', `/api/sites/${siteId}/advances`);
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No advance payments recorded yet</td></tr>';
+      tfoot.innerHTML = '<td colspan="5" style="text-align:center;color:var(--muted)">No data</td>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `
+      <tr>
+        <td>${formatDate(r.payment_date)}</td>
+        <td class="amount-cell">${formatINR(r.amount)}</td>
+        <td>${escHtml(r.notes || '—')}</td>
+        <td class="amount-cell">${formatINR(r.cumulative_advance)}</td>
+        <td><button class="btn btn-red btn-icon" onclick="confirmDelete('advance',${r.id})">🗑️</button></td>
+      </tr>`).join('');
+    const total = rows.reduce((sum, r) => sum + parseFloat(r.amount), 0);
+    tfoot.innerHTML = `<td><strong>Total</strong></td><td class="amount-cell"><strong>${formatINR(total)}</strong></td><td colspan="3"></td>`;
+  } catch(err) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty-state">Error: ${escHtml(err.message)}</td></tr>`;
+  }
+}
+
+function openAddAdvance() {
+  const siteId = document.getElementById('adv-site-select').value;
+  if (!siteId) { alert('Please select a site first'); return; }
+  document.getElementById('adv-date').value   = todayISO();
+  document.getElementById('adv-amount').value = '';
+  document.getElementById('adv-notes').value  = '';
+  openModal('modal-add-advance');
+}
+
+async function submitAdvance() {
+  const siteId       = document.getElementById('adv-site-select').value;
+  const payment_date = document.getElementById('adv-date').value;
+  const amount       = parseFloat(document.getElementById('adv-amount').value);
+  const notes        = document.getElementById('adv-notes').value.trim();
+  if (!payment_date) { alert('Date is required'); return; }
+  if (isNaN(amount) || amount <= 0) { alert('Enter a valid amount'); return; }
+  try {
+    await apiJSON('POST', `/api/sites/${siteId}/advances`, { payment_date, amount, notes: notes || null });
+    closeModal('modal-add-advance');
+    loadAdvances();
+    loadSummary();
+  } catch(err) { alert('Error: ' + err.message); }
+}
+
+// ═══════════════════════════════════════════════════
+//  DELETE
+// ═══════════════════════════════════════════════════
+function confirmDelete(type, id) {
+  _pendingDeleteFn = async () => {
+    try {
+      if (type === 'expense') {
+        await apiJSON('DELETE', `/api/expenses/${id}`);
+        loadExpenses();
+        loadSummary();
+      } else {
+        await apiJSON('DELETE', `/api/advances/${id}`);
+        loadAdvances();
+        loadSummary();
+      }
+      closeModal('modal-confirm');
+    } catch(err) { alert('Error: ' + err.message); }
+  };
+  openModal('modal-confirm');
+}
+
+document.getElementById('confirm-ok-btn').addEventListener('click', () => {
+  if (_pendingDeleteFn) { _pendingDeleteFn(); _pendingDeleteFn = null; }
+});
+
+// ═══════════════════════════════════════════════════
+//  EXPORT
+// ═══════════════════════════════════════════════════
+async function exportSite() {
+  const siteId = document.getElementById('exp-site-select').value;
+  if (!siteId) { alert('Select a site first'); return; }
+  triggerDownload(`/api/sites/${siteId}/export`);
+}
+
+async function exportAll() {
+  triggerDownload('/api/export/all');
+}
+
+function triggerDownload(url) {
+  fetch(url, { headers: { 'Authorization': 'Bearer ' + token } })
+    .then(res => {
+      if (!res.ok) return res.json().then(e => { throw new Error(e.error); });
+      const disp = res.headers.get('Content-Disposition') || '';
+      const match = disp.match(/filename="?([^"]+)"?/);
+      const filename = match ? match[1] : 'export.xlsx';
+      return res.blob().then(blob => ({ blob, filename }));
+    })
+    .then(({ blob, filename }) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    })
+    .catch(err => alert('Export failed: ' + err.message));
+}
+
+// ═══════════════════════════════════════════════════
+//  XSS HELPER
+// ═══════════════════════════════════════════════════
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ═══════════════════════════════════════════════════
+//  KEYBOARD – Enter on PIN fields
+// ═══════════════════════════════════════════════════
+document.getElementById('owner-pin').addEventListener('keydown', e => { if(e.key==='Enter') doLogin('owner'); });
+document.getElementById('asst-pin').addEventListener('keydown',  e => { if(e.key==='Enter') doLogin('assistant'); });
+
+// Close modals on overlay click
+document.querySelectorAll('.modal-overlay').forEach(ov => {
+  ov.addEventListener('click', e => { if(e.target === ov) ov.classList.remove('open'); });
+});
+
+// ═══════════════════════════════════════════════════
+//  PAGE LOAD — restore session
+// ═══════════════════════════════════════════════════
+(function init() {
+  if (token && role) {
+    onLoginSuccess();
+  } else {
+    showView('view-login');
+  }
+})();
+</script>
+</body>
+</html>
